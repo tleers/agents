@@ -316,6 +316,7 @@ class RealtimeModel(llm.RealtimeModel):
         entra_token: str | None = None,
         base_url: str | None = None,
         voice: str = "alloy",
+        modalities: NotGivenOr[list[Literal["text", "audio"]]] = NOT_GIVEN,
         input_audio_transcription: NotGivenOr[InputAudioTranscription | None] = NOT_GIVEN,
         input_audio_noise_reduction: InputAudioNoiseReduction | None = None,
         turn_detection: NotGivenOr[TurnDetection | None] = NOT_GIVEN,
@@ -382,6 +383,7 @@ class RealtimeModel(llm.RealtimeModel):
 
         return cls(
             voice=voice,
+            modalities=modalities,
             input_audio_transcription=input_audio_transcription,
             input_audio_noise_reduction=input_audio_noise_reduction,
             turn_detection=turn_detection,
@@ -408,6 +410,7 @@ class RealtimeModel(llm.RealtimeModel):
         max_response_output_tokens: NotGivenOr[int | Literal["inf"] | None] = NOT_GIVEN,
         speed: NotGivenOr[float] = NOT_GIVEN,
         tracing: NotGivenOr[Tracing | None] = NOT_GIVEN,
+        modalities: NotGivenOr[list[Literal["text", "audio"]]] = NOT_GIVEN,
     ) -> None:
         if is_given(voice):
             self._opts.voice = voice
@@ -436,6 +439,14 @@ class RealtimeModel(llm.RealtimeModel):
         if is_given(tracing):
             self._opts.tracing = cast(Union[Tracing, None], tracing)
 
+        if is_given(modalities):
+            self._opts.modalities = modalities
+            # keep capabilities in sync so sessions behave correctly
+            try:
+                self.capabilities.audio_output = ("audio" in modalities)
+            except Exception:
+                pass
+
         for sess in self._sessions:
             sess.update_options(
                 voice=voice,
@@ -446,6 +457,7 @@ class RealtimeModel(llm.RealtimeModel):
                 max_response_output_tokens=max_response_output_tokens,
                 speed=speed,
                 tracing=tracing,
+                modalities=modalities,
             )
 
     def _ensure_http_session(self) -> aiohttp.ClientSession:
@@ -903,6 +915,7 @@ class RealtimeSession(
         input_audio_noise_reduction: NotGivenOr[InputAudioNoiseReduction | None] = NOT_GIVEN,
         speed: NotGivenOr[float] = NOT_GIVEN,
         tracing: NotGivenOr[Tracing | None] = NOT_GIVEN,
+        modalities: NotGivenOr[list[Literal["text", "audio"]]] = NOT_GIVEN,
     ) -> None:
         kwargs: dict[str, Any] = {}
 
@@ -942,6 +955,10 @@ class RealtimeSession(
         if is_given(tracing):
             self._realtime_model._opts.tracing = cast(Union[Tracing, None], tracing)
             kwargs["tracing"] = cast(Union[Tracing, None], tracing)
+
+        if is_given(modalities):
+            self._realtime_model._opts.modalities = modalities
+            kwargs["modalities"] = modalities
 
         if kwargs:
             self.send_event(
